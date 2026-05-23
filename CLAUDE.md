@@ -46,8 +46,13 @@ App
 ```
 
 **Transition points:**
-- `Login` receives `onSuccess: () => void` → called after auth resolves → sets `view = "dashboard"`
-- `Dashboard` receives `onSignOut: () => void` → called by Sign Out button → sets `view = "login"`
+- `Login` receives `onSuccess: () => void` → called after auth resolves → writes token to localStorage → sets `view = "dashboard"`
+- `Dashboard` receives `onSignOut: () => void` → called by Sign Out button → removes token from localStorage → sets `view = "login"`
+
+**Auth persistence:**
+On mount, `useState` uses a lazy initializer to check `localStorage` for `TOKEN_KEY = "scalable_auth_token"`. If a token exists the user lands directly on the dashboard — the login screen is never shown. On sign-out the token is removed and the user is returned to login.
+
+Currently stores `"mock-auth-token"`. When the real backend is ready, replace `localStorage.setItem(TOKEN_KEY, "mock-auth-token")` in `handleLoginSuccess` with the actual JWT returned by `POST /api/auth/login`. Token expiry validation should also be added at that point inside the lazy initializer.
 
 ---
 
@@ -90,10 +95,17 @@ GET /api/submissions/count
 ---
 
 ### `components/UploadsListTile.tsx`
-**Props:** none
+**Props:** none — consumes `useToast()` internally
 
-On mount fires mock `GET /api/uploads` (1 000 ms delay, returns 6 hardcoded records).
-Displays a table: File Name | Submitted (YYYY-MM-DD) | Status badge.
+Paginated upload history table. Fetches `PAGE_SIZE = 4` records at a time, appending on each Load More press. Initial fetch on mount; subsequent fetches triggered by the user.
+
+**State:**
+- `uploads` — accumulated list, grows with each page
+- `total` — total record count returned by the API
+- `hasMore` — whether another page exists
+- `offset` — current position for the next fetch
+- `loading` — initial fetch spinner
+- `loadingMore` — Load More button spinner (table stays visible)
 
 **Upload model:**
 ```ts
@@ -106,10 +118,16 @@ interface Upload {
 ```
 
 **Real endpoint shape:**
-```json
-GET /api/uploads
-→ Upload[]
 ```
+GET /api/uploads?offset=0&limit=4
+→ { uploads: Upload[], hasMore: boolean, total: number }
+```
+
+**Behaviour:**
+- Header badge shows `N of Total` while more records exist, `N of N` when all loaded
+- Load More button shows a spinner and disables during fetch
+- When `hasMore` is false the button is replaced with `"All N uploads shown"`
+- Load More errors fire an `error` toast (table is preserved); initial load errors show inline text
 
 Status badge colours: `approved` → green, `pending` → yellow, `rejected` → red.
 

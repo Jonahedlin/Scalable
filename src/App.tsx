@@ -6,14 +6,33 @@ import { ToastProvider } from "./context/ToastContext";
 
 type View = "login" | "dashboard";
 
+// Storage key for the auth token.
+// Swap the stored value for a real JWT once the backend is ready.
+export const TOKEN_KEY = "scalable_auth_token";
+
 function App() {
-  const [view, setView] = useState<View>("login");
+  // Lazy initializer — reads localStorage once on mount.
+  // If a token exists the user goes straight to the dashboard without seeing login.
+  const [view, setView] = useState<View>(() =>
+    localStorage.getItem(TOKEN_KEY) ? "dashboard" : "login"
+  );
+
+  const handleLoginSuccess = () => {
+    // Store a mock token — replace with the real JWT returned by POST /api/auth/login
+    localStorage.setItem(TOKEN_KEY, "mock-auth-token");
+    setView("dashboard");
+  };
+
+  const handleSignOut = () => {
+    localStorage.removeItem(TOKEN_KEY);
+    setView("login");
+  };
 
   return (
     <ToastProvider>
       {view === "dashboard"
-        ? <Dashboard onSignOut={() => setView("login")} />
-        : <Login onSuccess={() => setView("dashboard")} />
+        ? <Dashboard onSignOut={handleSignOut} />
+        : <Login onSuccess={handleLoginSuccess} />
       }
       <ToastContainer />
     </ToastProvider>
