@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { API_BASE } from "../api/client";
 
 const SubmissionCountTile = () => {
   const [count, setCount] = useState<number | null>(null);
@@ -6,11 +7,12 @@ const SubmissionCountTile = () => {
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    // Mock GET /api/submissions/count
     const fetchCount = async () => {
       try {
-        await new Promise((r) => setTimeout(r, 800));
-        setCount(24); // replace with real fetch response
+        const res = await fetch(`${API_BASE}/api/submissions/count`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        setCount(data.count);
       } catch {
         setError(true);
       } finally {

@@ -17,9 +17,8 @@ function App() {
     localStorage.getItem(TOKEN_KEY) ? "dashboard" : "login"
   );
 
-  const handleLoginSuccess = () => {
-    // Store a mock token — replace with the real JWT returned by POST /api/auth/login
-    localStorage.setItem(TOKEN_KEY, "mock-auth-token");
+  const handleLoginSuccess = (token: string) => {
+    localStorage.setItem(TOKEN_KEY, token);
     setView("dashboard");
   };
 
@@ -32,7 +31,7 @@ function App() {
     <ToastProvider>
       {view === "dashboard"
         ? <Dashboard onSignOut={handleSignOut} />
-        : <Login onSuccess={handleLoginSuccess} />
+        : <Login onSuccess={(token) => handleLoginSuccess(token)} />
       }
       <ToastContainer />
     </ToastProvider>

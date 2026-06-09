@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { API_BASE } from "../api/client";
+import { useToast } from "../context/ToastContext";
 
 interface LoginForm {
   identifier: string;
@@ -6,11 +8,12 @@ interface LoginForm {
 }
 
 interface Props {
-  onSuccess: () => void;
+  onSuccess: (token: string) => void;
 }
 
 const Login = ({ onSuccess }: Props) => {
-  const [form, setForm] = useState<LoginForm>({ identifier: "", password: "" });
+  const { addToast } = useToast();
+  const [form, setForm]     = useState<LoginForm>({ identifier: "", password: "" });
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -21,12 +24,30 @@ const Login = ({ onSuccess }: Props) => {
     e.preventDefault();
     setLoading(true);
 
-    // Mock API call — replace with real endpoint when backend is ready
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          identifier: form.identifier,
+          password: form.password,
+        }),
+      });
 
-    console.log("Login payload:", form);
-    setLoading(false);
-    onSuccess();
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        addToast(err.detail ?? "Invalid credentials. Please try again.", "error");
+        return;
+      }
+
+      const data = await res.json();
+      onSuccess(data.token);
+    } catch (err) {
+      console.error("Login fetch error:", err);
+      addToast("Could not reach the server. Please try again.", "error");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

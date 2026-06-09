@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { API_BASE } from "../api/client";
 import { useToast } from "../context/ToastContext";
 
 // ─── validation constants ─────────────────────────────────────────────────────
@@ -136,30 +137,25 @@ const FileDropTile = () => {
     setQueue((prev) => prev.filter((qf) => qf.id !== id));
   };
 
-  // ── per-file mock upload ───────────────────────────────────────────────────
-  // Replace the body of this function with a real XMLHttpRequest when the
-  // backend is ready — XHR exposes xhr.upload.onprogress for live progress.
-  //
-  //   const xhr = new XMLHttpRequest();
-  //   xhr.upload.onprogress = (e) => {
-  //     if (e.lengthComputable) {
-  //       const pct = Math.round((e.loaded / e.total) * 100);
-  //       updateProgress(id, pct, "uploading");
-  //     }
-  //   };
-  //   xhr.onload  = () => updateProgress(id, 100, "done");
-  //   xhr.onerror = () => updateProgress(id, 0,   "error");
-  //   xhr.open("POST", "/api/uploads");
-  //   const fd = new FormData();
-  //   fd.append("file", file);
-  //   xhr.send(fd);
-  const simulateUpload = (id: string): Promise<void> =>
-    new Promise((resolve) => {
-      let progress = 0;
-      const tick = setInterval(() => {
-        progress += Math.floor(Math.random() * 18) + 6; // +6–24% per tick
-        if (progress >= 100) {
-          clearInterval(tick);
+  // ── per-file XHR upload (live progress) ──────────────────────────────────
+  // Uses XMLHttpRequest instead of fetch — fetch does not expose upload progress.
+  const uploadFile = (id: string, file: File): Promise<void> =>
+    new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          setQueue((prev) =>
+            prev.map((qf) =>
+              qf.id === id ? { ...qf, progress: pct, status: "uploading" } : qf
+            )
+          );
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status === 201) {
           setQueue((prev) =>
             prev.map((qf) =>
               qf.id === id ? { ...qf, progress: 100, status: "done" } : qf
@@ -169,11 +165,26 @@ const FileDropTile = () => {
         } else {
           setQueue((prev) =>
             prev.map((qf) =>
-              qf.id === id ? { ...qf, progress, status: "uploading" } : qf
+              qf.id === id ? { ...qf, status: "error" } : qf
             )
           );
+          reject(new Error(`Server responded with ${xhr.status}`));
         }
-      }, 160);
+      };
+
+      xhr.onerror = () => {
+        setQueue((prev) =>
+          prev.map((qf) =>
+            qf.id === id ? { ...qf, status: "error" } : qf
+          )
+        );
+        reject(new Error("Network error"));
+      };
+
+      xhr.open("POST", `${API_BASE}/api/uploads`);
+      const fd = new FormData();
+      fd.append("file", file);
+      xhr.send(fd);
     });
 
   // ── submit ─────────────────────────────────────────────────────────────────
@@ -181,18 +192,23 @@ const FileDropTile = () => {
     if (!queue.length || loading) return;
     setLoading(true);
 
-    // Mark all as uploading immediately
+    // Mark all waiting files as uploading immediately
     setQueue((prev) => prev.map((qf) => ({ ...qf, status: "uploading" })));
 
-    // Upload all files in parallel
-    await Promise.all(queue.map((qf) => simulateUpload(qf.id)));
-
-    const count = queue.length;
-    setLoading(false);
-    addToast(
-      `${count} file${count > 1 ? "s" : ""} uploaded successfully`,
-      "success"
+    // allSettled — one failure does not abort the other uploads
+    const results = await Promise.allSettled(
+      queue.map((qf) => uploadFile(qf.id, qf.file))
     );
+
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    const failed    = results.filter((r) => r.status === "rejected").length;
+
+    if (succeeded > 0)
+      addToast(`${succeeded} file${succeeded > 1 ? "s" : ""} uploaded successfully`, "success");
+    if (failed > 0)
+      addToast(`${failed} file${failed > 1 ? "s" : ""} failed to upload`, "error");
+
+    setLoading(false);
   };
 
   const handleClear = () => {

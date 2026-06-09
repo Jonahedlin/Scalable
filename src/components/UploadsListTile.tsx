@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { API_BASE } from "../api/client";
 import { useToast } from "../context/ToastContext";
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -18,33 +19,12 @@ interface FetchResult {
   total: number;
 }
 
-// ─── mock data (replace with real API) ───────────────────────────────────────
-const MOCK_UPLOADS: Upload[] = [
-  { id: "1",  name: "screenshot_001.png",    status: "approved", submittedAt: "2026-05-23" },
-  { id: "2",  name: "capture_dashboard.jpg", status: "pending",  submittedAt: "2026-05-23" },
-  { id: "3",  name: "report_page2.png",      status: "rejected", submittedAt: "2026-05-22" },
-  { id: "4",  name: "invoice_scan.jpg",      status: "approved", submittedAt: "2026-05-22" },
-  { id: "5",  name: "form_filled.png",       status: "pending",  submittedAt: "2026-05-21" },
-  { id: "6",  name: "receipt_may21.jpg",     status: "approved", submittedAt: "2026-05-21" },
-  { id: "7",  name: "passport_scan.jpg",     status: "approved", submittedAt: "2026-05-20" },
-  { id: "8",  name: "bank_statement.png",    status: "pending",  submittedAt: "2026-05-20" },
-  { id: "9",  name: "utility_bill.jpg",      status: "rejected", submittedAt: "2026-05-19" },
-  { id: "10", name: "id_card_front.png",     status: "approved", submittedAt: "2026-05-19" },
-  { id: "11", name: "id_card_back.png",      status: "approved", submittedAt: "2026-05-18" },
-  { id: "12", name: "selfie_verify.jpg",     status: "pending",  submittedAt: "2026-05-18" },
-];
-
-// Mock GET /api/uploads?offset=N&limit=N
-// Replace with: fetch(`/api/uploads?offset=${offset}&limit=${limit}`)
-// Expected response shape: { uploads: Upload[], hasMore: boolean, total: number }
-const mockFetch = async (offset: number, limit: number): Promise<FetchResult> => {
-  await new Promise((r) => setTimeout(r, 800));
-  const slice = MOCK_UPLOADS.slice(offset, offset + limit);
-  return {
-    uploads: slice,
-    hasMore: offset + limit < MOCK_UPLOADS.length,
-    total:   MOCK_UPLOADS.length,
-  };
+// GET /api/uploads?offset=N&limit=N
+// Response shape: { uploads: Upload[], hasMore: boolean, total: number }
+const apiFetch = async (offset: number, limit: number): Promise<FetchResult> => {
+  const res = await fetch(`${API_BASE}/api/uploads?offset=${offset}&limit=${limit}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
 };
 
 // ─── badge colours ────────────────────────────────────────────────────────────
@@ -70,7 +50,7 @@ const UploadsListTile = () => {
   useEffect(() => {
     const init = async () => {
       try {
-        const result = await mockFetch(0, PAGE_SIZE);
+        const result = await apiFetch(0, PAGE_SIZE);
         setUploads(result.uploads);
         setTotal(result.total);
         setHasMore(result.hasMore);
@@ -89,7 +69,7 @@ const UploadsListTile = () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
-      const result = await mockFetch(offset, PAGE_SIZE);
+      const result = await apiFetch(offset, PAGE_SIZE);
       setUploads((prev) => [...prev, ...result.uploads]);
       setHasMore(result.hasMore);
       setOffset((prev) => prev + PAGE_SIZE);
